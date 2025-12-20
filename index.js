@@ -91,13 +91,13 @@ function createChatId(guildId, channelId) {
 const getChannel = (g, c) =>
   db.prepare(`SELECT * FROM channels WHERE guild_id=? AND channel_id=?`).get(g, c);
 
-const upsertChannel = (g, c, chatId) =>
+const upsertChannel = (g, c, chatId, active = 0) =>
   db.prepare(`
     INSERT INTO channels (guild_id, channel_id, chat_id, active, created_at)
-    VALUES (?, ?, ?, 1, ?)
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(guild_id, channel_id)
-    DO UPDATE SET chat_id=excluded.chat_id, active=1
-  `).run(g, c, chatId, Date.now());
+    DO UPDATE SET chat_id=excluded.chat_id
+  `).run(g, c, chatId, active, Date.now());
 
 const setActive = (g, c, a) =>
   db.prepare(`UPDATE channels SET active=? WHERE guild_id=? AND channel_id=?`)
@@ -537,8 +537,8 @@ if (['wack', 'sleep', 'reset'].includes(i.commandName)) {
   }
 
 if (i.commandName === 'rename') {
-  let newName = i.options.getString('name').trim();
-  const anon = i.options.getBoolean('anonymous') ?? false;
+  const newName = i.options.getString('name').trim();
+  const ephemeralReply = i.options.getBoolean('anonymous') ?? false; 
 
   if (newName.length > 1983) {
     return i.reply({
@@ -546,15 +546,14 @@ if (i.commandName === 'rename') {
       ephemeral: true,
     });
   }
-
   db.prepare(`
-    INSERT INTO users (user_id, display_name, anonymous)
-    VALUES (?, ?, ?)
+    INSERT INTO users (user_id, display_name)
+    VALUES (?, ?)
     ON CONFLICT(user_id)
-    DO UPDATE SET display_name=excluded.display_name, anonymous=excluded.anonymous
-  `).run(i.user.id, newName, anon ? 1 : 0);
+    DO UPDATE SET display_name=excluded.display_name
+  `).run(i.user.id, newName);
 
-  return i.reply({ content: `Your name is now ${newName}`, ephemeral: anon });
+  return i.reply({ content: `Your name is now ${newName}`, ephemeral: ephemeralReply });
 }
 if (i.commandName === 'custominstructions') {
   if (!row?.chat_id) {
@@ -623,11 +622,12 @@ let chatId;
 if (!row) {
   chatId = await createChannelChat(SHAPE, msg.channel.name, msg.channel.id);
   if (!chatId) return console.warn('Failed to create chat');
-  upsertChannel(msg.guild.id, msg.channel.id, chatId);
+  upsertChannel(msg.guild.id, msg.channel.id, chatId, 0);
   row = getChannel(msg.guild.id, msg.channel.id);
 } else {
   chatId = row.chat_id;
 }
+
 
 
   const active = row.active;
@@ -698,4 +698,3 @@ client.once('clientReady', () => {
 
   console.log(`${client.user.tag} online`);
 });
-
