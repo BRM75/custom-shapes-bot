@@ -4,7 +4,7 @@ This hunk of stuff allows you to create your own shapes bot if you want idk
 
 ## INSTRUCTIONS
 
-Prerequesites: NodeJS and an account on https://talk.shapes.inc/
+Prerequisites: NodeJS and an account on https://talk.shapes.inc/
 1. Donwload the Zip and extract to a folder. Preferrably make sure it isn't a subfolder of a folder with the same name to avoid confusion (e.g Downloads/custom-bot/custom-bot)
 2. Make sure you have NodeJs installed if you haven't already, must be above v18
 3. Rename env.example to .env and edit it with all required variables in your IDE
