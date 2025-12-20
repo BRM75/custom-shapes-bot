@@ -147,7 +147,7 @@ async function initBrowser() {
   const hasCookies = fs.existsSync(COOKIE_PATH);
 
   browser = await puppeteer.launch({
-    headless: false,
+    headless: hasCookies,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
@@ -698,3 +698,4 @@ client.once('clientReady', () => {
 
   console.log(`${client.user.tag} online`);
 });
+
