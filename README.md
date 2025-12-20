@@ -12,4 +12,6 @@ Prerequesites: NodeJS and an account on https://talk.shapes.inc/
 5. Once those modules are installed and your env has all required variables such as yout token and shape slug, run `node index.js` (make sure you are in the folder)
 6. MAKE SURE YOU CREATE A talk.shapes.inc ACCOUNT IF YOU DON'T HAVE ONE ALREADY. On the first time you launch you will be asked to log in on the Puppeteer browser. Log in and then close your terminal. Reopen your terminal and run `node index.js` once again and you should be automatically logged in. Note that the browser will be headless but if you have done everything correctly your console should show that your bot has gone online.
 
+**Disclaimer**: Logging in will generate a cookies json afterwards on your folder. This is used to log in automatically on launch. I DO NOT AND WILL NEVER HAVE YOUR COOKIES OR ACCOUNT. You can inspect index.js yourself at any time.
+
 ### Your Discord shape bot should now be running and ready to chat as a shape!
