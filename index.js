@@ -60,7 +60,6 @@ process.on('uncaughtException', e => {
   console.error('[UNCAUGHT]', e);
 });
 
-
 const streams = new Map();
 const chatLocks = new Map();
 const DISCORD_MAX = 2000;
@@ -279,6 +278,19 @@ async function sendCommand(chatId, cmd) {
   }, chatId, cmd, SHAPE);
 }
 
+async function safeInteractionReply(i, payload) {
+  try {
+    if (i.replied || i.deferred) {
+      return await i.followUp(payload);
+    }
+    return await i.reply(payload);
+  } catch (err) {
+    if ([10062, 50001, 50013].includes(err?.code)) return;
+    console.warn('Interaction reply failed:', err);
+  }
+}
+
+
 async function sendMessage(chatId, text, attachments = []) {
   if (chatLocks.get(chatId)) return null;
   chatLocks.set(chatId, true);
@@ -348,18 +360,24 @@ async function sendShapeCommandAndWait(chatId, command, waitMs = 15000) {
   const stream = streams.get(chatId);
 
   return new Promise(async resolve => {
-    let done = false;
+    let resolved = false;
+
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        unsub();
+        resolve(null);
+      }
+    }, waitMs);
 
     const unsub = stream.subscribe(e => {
-      if (done) return;
+      if (resolved) return;
 
-      if (
-        e?.type === 'new_message' &&
-        e.message?.role === 'assistant' &&
-        e.message?.messageType?.includes(command.replace('!', ''))
-      ) {
-        done = true;
+      if (e?.type === 'new_message' && e.message?.role === 'assistant') {
+        resolved = true;
+        clearTimeout(timeout);
         unsub();
+
         resolve(
           e.message.parts
             .filter(p => p.type === 'text')
@@ -369,17 +387,10 @@ async function sendShapeCommandAndWait(chatId, command, waitMs = 15000) {
       }
     });
 
-    setTimeout(() => {
-      if (!done) {
-        done = true;
-        unsub();
-        resolve(null);
-      }
-    }, waitMs);
-
     await sendCommand(chatId, command);
   });
 }
+
 
 const client = new Client({
   intents: [
@@ -538,7 +549,7 @@ if (['wack', 'sleep', 'reset'].includes(i.commandName)) {
 
 if (i.commandName === 'rename') {
   const newName = i.options.getString('name').trim();
-  const ephemeralReply = i.options.getBoolean('anonymous') ?? false; 
+  const ephemeralReply = i.options.getBoolean('anonymous') ?? false;
 
   if (newName.length > 1983) {
     return i.reply({
@@ -555,6 +566,7 @@ if (i.commandName === 'rename') {
 
   return i.reply({ content: `Your name is now ${newName}`, ephemeral: ephemeralReply });
 }
+
 if (i.commandName === 'custominstructions') {
   if (!row?.chat_id) {
     return i.reply({ content: "No active chat in this channel.", ephemeral: true });
