@@ -117,14 +117,16 @@ async function getShapeData(shapeSlug) {
     const data = await res.json();
 
     return {
+      id: data.id,
       name: data.name || 'Shape',
       activation: data.shape_settings?.shape_initial_message || 'hello'
     };
   } catch (err) {
     console.error('Failed to fetch shape data:', err);
-    return { name: 'Shape', activation: 'hello' };
+    return { id: null, name: 'Shape', activation: 'hello' };
   }
 }
+
 
 
 let browser, page;
@@ -566,12 +568,31 @@ if (['wack', 'sleep', 'reset'].includes(i.commandName)) {
 }
 
 
-  if (i.commandName === 'say') {
-    const chatId = row?.chat_id ?? createChatId(g, c);
+if (i.commandName === 'say') {
+  let chatId = row?.chat_id;
+
+  if (!chatId) {
+    chatId = await createChannelChat(SHAPE, i.channel.name, i.channel.id);
+    if (!chatId) {
+      return i.reply("Failed to create chat lol");
+    }
     upsertChannel(g, c, chatId);
-    const r = await sendMessage(chatId, i.options.getString('text'));
-    return i.reply(r || 'No response.');
   }
+  const username = i.user.username;
+  const text = i.options.getString('text');
+
+  if (text.length > 1983) {
+    return i.reply({
+      content: "Texttoo long, please something shorter",
+      ephemeral: true,
+    });
+  }
+
+  const payload = `${text}\n\`${username}\``;
+  const r = await sendMessage(chatId, payload);
+  return i.reply(r || 'No response.');
+}
+
 
   if (i.commandName === 'stats') {
     const s = db.prepare(`SELECT * FROM stats`).all();
@@ -693,8 +714,20 @@ if (!row) {
       width: att.width,
       height: att.height
     }));
+  
+  
+  const shapeData = await getShapeData(SHAPE);
 
-  const text = `${name}: ${msg.content || ''}`;
+  let content = msg.content || '';
+
+  if (shapeData.id) {
+  const botMentionRegex = new RegExp(`<@!?${client.user.id}>`, 'g');
+  const shapeMention = `[@${SHAPE}](shape:${shapeData.id}|${SHAPE})`;
+  content = content.replace(botMentionRegex, shapeMention);
+  }
+
+  const text = `>>>${name}: ${content}`;
+
 
   await ensureStream(chatId);
 
