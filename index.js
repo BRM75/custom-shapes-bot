@@ -529,12 +529,14 @@ client.on('interactionCreate', async i => {
 if (i.commandName === 'activate') {
   const chatId = row?.chat_id ?? createChatId(g, c);
   upsertChannel(g, c, chatId);
+  setActive(g, c, true);
 
   const { name: shapeName, activation: shapeActivation } = await getShapeData(SHAPE);
 
   await i.reply(`${shapeName} activated.`);
   await i.followUp(`${shapeActivation}`);
 }
+
 
 if (i.commandName === 'deactivate') {
   setActive(g, c, false);
