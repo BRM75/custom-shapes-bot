@@ -295,21 +295,49 @@ async function sendMessage(chatId, text, attachments = []) {
   if (chatLocks.get(chatId)) return null;
   chatLocks.set(chatId, true);
 
+  const userMessageId = crypto.randomUUID();
+  let resolved = false;
+
   try {
     await ensureStream(chatId);
     const stream = streams.get(chatId);
 
-    return await new Promise(async res => {
+    return await new Promise(async resolve => {
+      const timeout = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        unsub();
+        console.warn('sendMessage timeout', { chatId });
+        resolve(null);
+      }, 20000);
+
+      let seenUserMessage = false;
+
       const unsub = stream.subscribe(e => {
-        if (e?.type === 'new_message' && e.message?.role === 'assistant') {
+        if (resolved || e?.type !== 'new_message') return;
+
+        const msg = e.message;
+
+        if (msg?.id === userMessageId && msg.role === 'user') {
+          seenUserMessage = true;
+          return;
+        }
+
+        if (seenUserMessage && msg?.role === 'assistant') {
+          resolved = true;
+          clearTimeout(timeout);
           unsub();
-          res(
-            e.message.parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n')
+
+          resolve(
+            msg.parts
+              .filter(p => p.type === 'text')
+              .map(p => p.text)
+              .join('\n\n')
           );
         }
       });
 
-      await safeEvaluate((chatId, text, shape, attachments) => {
+      await safeEvaluate((chatId, text, shape, attachments, id) => {
         fetch('https://talk.shapes.inc/api/chat', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -317,9 +345,9 @@ async function sendMessage(chatId, text, attachments = []) {
           body: JSON.stringify({
             id: chatId,
             message: {
+              id,
               role: 'user',
               content: text || ' ',
-              id: crypto.randomUUID(),
               createdAt: new Date().toISOString(),
               parts: [{ type: 'text', text: text || ' ' }],
               ...(attachments.length && { experimental_attachments: attachments })
@@ -329,26 +357,31 @@ async function sendMessage(chatId, text, attachments = []) {
             initialInterlocutors: [`shapesinc/${shape}`]
           })
         });
-      }, chatId, text, SHAPE, attachments);
+      }, chatId, text, SHAPE, attachments, userMessageId);
     });
   } finally {
     chatLocks.delete(chatId);
   }
 }
 
+
 async function withTypingIndicator(channel, task) {
   let active = true;
 
   const interval = setInterval(() => {
-    if (!active) return;
-    channel.sendTyping().catch(() => {});
+    if (active) channel.sendTyping().catch(() => {});
   }, 4000);
+
+  const failsafe = setTimeout(() => {
+    active = false;
+  }, 30000);
 
   try {
     return await task();
   } finally {
     active = false;
     clearInterval(interval);
+    clearTimeout(failsafe);
   }
 }
 
