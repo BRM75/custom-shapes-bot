@@ -82,9 +82,6 @@ function chunkMessage(text, max = DISCORD_MAX) {
   return chunks;
 }
 
-function createChatId(guildId, channelId) {
-  return `discord:${guildId}:${channelId}:${crypto.randomUUID()}`;
-}
 
 
 const getChannel = (g, c) =>
@@ -529,15 +526,24 @@ client.on('interactionCreate', async i => {
   let row = getChannel(g, c);
 
 if (i.commandName === 'activate') {
-  const chatId = row?.chat_id ?? createChatId(g, c);
-  upsertChannel(g, c, chatId);
-  setActive(g, c, true);
+  let chatId = row?.chat_id;
+
+  if (!chatId) {
+    chatId = await createChannelChat(SHAPE, i.channel.name, i.channel.id);
+    if (!chatId) {
+      return i.reply("Failed to create chat");
+    }
+    upsertChannel(g, c, chatId, 1);
+  } else {
+    setActive(g, c, true);
+  }
 
   const { name: shapeName, activation: shapeActivation } = await getShapeData(SHAPE);
 
   await i.reply(`${shapeName} activated.`);
-  await i.followUp(`${shapeActivation}`);
+  await i.followUp(shapeActivation);
 }
+
 
 
 if (i.commandName === 'deactivate') {
@@ -569,29 +575,20 @@ if (['wack', 'sleep', 'reset'].includes(i.commandName)) {
 
 
 if (i.commandName === 'say') {
-  let chatId = row?.chat_id;
-
-  if (!chatId) {
-    chatId = await createChannelChat(SHAPE, i.channel.name, i.channel.id);
-    if (!chatId) {
-      return i.reply("Failed to create chat lol");
-    }
-    upsertChannel(g, c, chatId);
-  }
   const username = i.user.username;
   const text = i.options.getString('text');
 
   if (text.length > 1983) {
     return i.reply({
-      content: "Texttoo long, please something shorter",
+      content: "Text too long, please use something shorter",
       ephemeral: true,
     });
   }
 
   const payload = `${text}\n\`${username}\``;
-  const r = await sendMessage(chatId, payload);
-  return i.reply(r || 'No response.');
+  return i.reply(payload);
 }
+
 
 
   if (i.commandName === 'stats') {
