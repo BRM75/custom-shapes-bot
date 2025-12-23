@@ -308,7 +308,7 @@ async function sendMessage(chatId, text, attachments = []) {
         unsub();
         console.warn('sendMessage timeout', { chatId });
         resolve(null);
-      }, 20000);
+      }, 90000);
 
       let seenUserMessage = false;
 
@@ -592,12 +592,18 @@ if (i.commandName === 'say') {
 
 
   if (i.commandName === 'stats') {
+    const userId = i.user.id;
+    const rename = db
+    .prepare("SELECT display_name FROM users WHERE user_id = ?")
+    .get(userId);
+    const displayName = rename?.display_name ?? i.user.username;
     const s = db.prepare(`SELECT * FROM stats`).all();
-    const uptime = Date.now() - s.find(x => x.key === 'start_time').value;
-    const hours = (uptime / 3_600_000).toFixed(2);
+    const uptimeMs = process.uptime() * 1000;
+    const uptimeSec = Math.floor(uptimeMs / 1000) % 60;
+    const uptimeMin = Math.floor(uptimeMs / (1000 * 60)) % 60;
+    const uptimeHr = Math.floor(uptimeMs / (1000 * 60 * 60));
     const total = s.find(x => x.key === 'messages').value;
-    const pct = row ? ((row.message_count / total) * 100).toFixed(1) : 0;
-    return i.reply(`Uptime: ${hours}h\nMessages: ${total}\nChannel %: ${pct}%\n`);
+    return i.reply(`# STATS\n**Your current name**:${displayName}\n**Bot uptime**: ${uptimeHr}h ${uptimeMin}m ${uptimeSec}s\n**Messages**: ${total}`);
   }
 
 if (i.commandName === 'rename') {
